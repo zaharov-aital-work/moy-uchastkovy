@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Мой участковый</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #0f1420);
+    --bg2: var(--tg-theme-secondary-bg-color, #171e2e);
+    --text: var(--tg-theme-text-color, #eef2fa);
+    --hint: var(--tg-theme-hint-color, #8a94a8);
+    --accent: var(--tg-theme-button-color, #2f7cf6);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --line: color-mix(in srgb, var(--text) 11%, transparent);
+    --safe:#22b573; --warn:#f5a524; --danger:#ef4655;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+  body{min-height:100vh;overflow-x:hidden}
+  .app{max-width:560px;margin:0 auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+  button,input{font:inherit;color:inherit;border:0;background:none}
+  button{cursor:pointer}
+  a{color:inherit;text-decoration:none}
+  @keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+  .logo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(140deg,#2f7cf6,#14b8a6);font-size:18px;box-shadow:0 6px 18px -6px #2f7cf6}
+  .lang{display:flex;background:var(--bg2);border-radius:999px;padding:3px;border:1px solid var(--line)}
+  .lang button{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;color:var(--hint)}
+  .lang button.on{background:var(--accent);color:var(--accent-text)}
+
+  .hero{border-radius:24px;padding:20px;position:relative;border:1px solid var(--line);
+    background:radial-gradient(110% 90% at 100% 0%,#14b8a655,transparent 60%),radial-gradient(90% 80% at 0% 100%,#2f7cf655,transparent 60%),var(--bg2)}
+  .hero h1{font-size:25px;line-height:1.15;letter-spacing:-.02em;margin-bottom:6px}
+  .hero p{color:var(--hint);margin-bottom:14px}
+  .search{position:relative}
+  .field{display:flex;gap:8px;background:var(--bg);border:1.5px solid var(--line);border-radius:16px;padding:6px 6px 6px 14px;transition:border-color .2s}
+  .field:focus-within{border-color:var(--accent)}
+  .field input{flex:1;min-width:0;outline:none;font-size:16px;padding:8px 0}
+  .field input::placeholder{color:var(--hint)}
+  .go{background:var(--accent);color:var(--accent-text);border-radius:12px;padding:0 16px;font-weight:700}
+  .sug{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden;z-index:1000;box-shadow:0 16px 40px -10px #0008;display:none}
+  .sug.on{display:block}
+  .sug button{display:block;width:100%;text-align:left;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .sug button:last-child{border:0}
+  .sug b{color:var(--accent)}
+  .quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .qb{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:14px;background:color-mix(in srgb,var(--bg) 65%,transparent);border:1px solid var(--line);font-weight:600;font-size:14px}
+  .qb:active,.btn:active{transform:scale(.97)}
+
+  .sec{margin:20px 0 10px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);display:flex;justify-content:space-between;align-items:center}
+  .sec span{text-transform:none;letter-spacing:0;font-weight:600}
+  #map{height:280px;border-radius:20px;overflow:hidden;border:1px solid var(--line);background:var(--bg2);z-index:0}
+  .dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
+  .leaflet-container{font:inherit;background:var(--bg2)}
+  .pin{width:34px;height:34px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);display:grid;place-items:center;background:linear-gradient(140deg,#2f7cf6,#14b8a6);border:2.5px solid #fff;box-shadow:0 4px 12px #0006}
+  .pin b{transform:rotate(45deg);color:#fff;font-size:13px}
+  .pin.sel{background:linear-gradient(140deg,#ef4655,#f5a524);transform:rotate(-45deg) scale(1.2)}
+  .me{width:18px;height:18px;border-radius:50%;background:#2f7cf6;border:3px solid #fff;box-shadow:0 0 0 8px #2f7cf633}
+
+  .msg{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:14px;color:var(--hint);animation:in .3s both}
+  .msg b{color:var(--text)}
+  .res{display:grid;gap:10px}
+  .off{background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:16px;animation:in .35s both}
+  .off.best{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .oh{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+  .av{width:50px;height:50px;border-radius:16px;flex:none;display:grid;place-items:center;font-weight:800;font-size:17px;color:#fff;background:linear-gradient(140deg,var(--c1),var(--c2))}
+  .rk{display:block;font-size:12.5px;color:var(--hint)}
+  .oh b{display:block;font-size:16.5px;line-height:1.25}
+  .badge{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent);margin-top:4px}
+  .next{display:flex;gap:10px;align-items:center;border-radius:14px;padding:10px 12px;margin-bottom:8px;background:#22b57318}
+  .next.soon{background:#f5a52420}
+  .next.live{background:#ef465520}
+  .next i{font-style:normal;font-size:20px}
+  .next small{display:block;font-size:12px;color:var(--hint)}
+  .next .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);display:inline-block;margin-right:4px;animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.2}}
+  .row{display:flex;gap:8px;color:var(--hint);font-size:14px;margin-bottom:6px}
+  .row b{color:var(--text);font-weight:600}
+  .acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .act{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px;border-radius:14px;background:var(--bg);border:1px solid var(--line);font-size:12.5px;font-weight:600}
+  .act em{font-style:normal;font-size:19px}
+  .act.dis{opacity:.4;pointer-events:none}
+  .act.pri{background:var(--accent);color:var(--accent-text);border-color:transparent}
+  .addrs{display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px;font-size:13.5px}
+  .addrs.on{display:block;animation:in .3s both}
+  .addrs div{margin-bottom:8px}
+  .addrs b{display:block}
+  .addrs span{color:var(--hint)}
+  .addrs mark{background:color-mix(in srgb,var(--accent) 30%,transparent);color:inherit;border-radius:4px;padding:0 3px}
+
+  .point{background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:16px;animation:in .3s both}
+  .point h3{font-size:17px;margin-bottom:2px}
+  .point p{color:var(--hint);font-size:13.5px;margin-bottom:12px}
+  .mini{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);width:100%;text-align:left}
+  .mini .av{width:38px;height:38px;border-radius:12px;font-size:13px}
+  .mini b{display:block;font-size:14.5px}
+  .mini span{font-size:12px;color:var(--hint)}
+  .mini i{margin-left:auto;font-style:normal;color:var(--hint)}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;border-radius:14px;font-weight:700;background:var(--accent);color:var(--accent-text);margin-top:10px}
+  .btn.ghost{background:var(--bg);color:var(--text);border:1px solid var(--line)}
+
+  .sos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sos a{color:#fff;background:linear-gradient(140deg,#ef4655,#c2263a);border-radius:16px;padding:12px;text-align:center;font-weight:800;font-size:22px}
+  .sos a span{display:block;font-size:12px;font-weight:600;opacity:.85}
+  .promo{display:flex;align-items:center;gap:12px;margin-top:10px;padding:14px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(120deg,#7b4dff22,#2f7cf622)}
+  .promo em{font-style:normal;font-size:26px}
+  .promo b{display:block}
+  .promo span{font-size:13px;color:var(--hint)}
+  .filter{width:100%;background:var(--bg2);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;outline:none;margin-bottom:10px}
+  .foot{margin-top:18px;font-size:12px;color:var(--hint);text-align:center}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand"><div class="logo">🏠</div><span data-t="brand"></span></div>
+    <div class="lang"><button data-lang="ru">RU</button><button data-lang="sah">САХА</button></div>
+  </div>
+
+  <div class="hero">
+    <h1 data-t="title"></h1>
+    <p data-t="sub"></p>
+    <div class="search">
+      <div class="field"><input id="q" autocomplete="off" enterkeyhint="search"><button class="go" id="go" data-t="find"></button></div>
+      <div class="sug" id="sug"></div>
+    </div>
+    <div class="quick">
+      <button class="qb" id="near">📍 <span data-t="near"></span></button>
+      <button class="qb" id="all">👮 <span data-t="all"></span></button>
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+  <div class="sec"><b data-t="mapTitle"></b><span id="mapCount"></span></div>
+  <div id="map"></div>
+  <div id="pointBox" style="margin-top:10px"></div>
+
+  <div class="sec" data-t="sosTitle"></div>
+  <div class="sos">
+    <a href="tel:102">102<span data-t="police"></span></a>
+    <a href="tel:112">112<span data-t="emergency"></span></a>
+  </div>
+  <a class="promo" id="promo" href="https://zaharov-aital-work.github.io/stop-moshennik/">
+    <em>🛡</em><div><b data-t="promo"></b><span data-t="promoSub"></span></div>
+  </a>
+  <p class="foot" data-t="foot"></p>
+</div>
+
+<script>
+const I18N = {
+  ru: {
+    brand:"Мой участковый", title:"Найдите своего участкового", sub:"Введите улицу и номер дома — покажем участкового, пункт полиции и ближайшее время приёма.",
+    ph:"Например: Ильменская 57 к 2", find:"Найти", near:"Рядом со мной", all:"Все участковые",
+    mapTitle:"Участковые пункты", points:n=>`${n} пунктов`,
+    sosTitle:"Экстренные службы", police:"полиция", emergency:"единый номер",
+    promo:"Проверьте себя на мошенников", promoSub:"Тренажёр «Стоп-мошенник» — 2 минуты",
+    foot:"Неофициальный прототип. Данные — открытые сведения с сайта МВД по Республике Саха (Якутия), 14.мвд.рф.",
+    yourOfficer:"Ваш участковый", others:"Также работают на этой улице", streetOnly:s=>`Дом не указан или не найден. Участковые на улице «${s}»:`,
+    notFound:q=>`Не нашли «<b>${q}</b>». Проверьте название улицы или выберите из подсказок.`,
+    tryEx:"Попробуйте: ", next:"Ближайший приём", liveNow:"Идёт приём прямо сейчас", today:"сегодня", tomorrow:"завтра", inDays:n=>`через ${n} дн.`,
+    point:"Пункт полиции", hours:"Приём", call:"Позвонить", route:"Маршрут", area:"Адреса", noPhone:"нет телефона",
+    allOf:n=>`Все участковые · ${n}`, filter:"Фамилия или улица…", officersHere:n=>`${n} участковых в этом пункте`,
+    nearest:"Ближайшие к вам пункты", km:k=> k<1 ? `${Math.round(k*1000)} м` : `${k.toFixed(1)} км`,
+    geoErr:"Не удалось определить местоположение. Разрешите доступ к геолокации или введите адрес.", geoWait:"Определяем местоположение…",
+    wd:["вс","пн","вт","ср","чт","пт","сб"], mon:["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"],
+    showOn:"Показать на карте", vrio:"врио", showAll:n=>`Показать всех (${n})`
+  },
+  sah: {
+    brand:"Мин участковайым", title:"Бэйэҥ участковайгын бул", sub:"Уулусса аатын уонна дьиэ нүөмэрин киллэр — участковайы, полиция пууннун уонна чугастааҕы приём кэмин көрдөрүөхпүт.",
+    ph:"Холобур: Ильменская 57 к 2", find:"Бул", near:"Чугас баар", all:"Бары участковайдар",
+    mapTitle:"Участковай пууннара", points:n=>`${n} пуун`,
+    sosTitle:"Тута көмө сулууспалара", police:"полиция", emergency:"биир нүөмэр",
+    promo:"Албынньыкка бэйэҕин бэрэбиэркэлээ", promoSub:"«Стоп-албынньыт» тренажёр — 2 мүнүүтэ",
+    foot:"Официальнайа суох прототип. Дааннайдар — Саха Өрөспүүбүлүкэтин МВД саайтыттан (14.мвд.рф) аһаҕас сибидиэнньэлэр.",
+    yourOfficer:"Эн участковайыҥ", others:"Бу уулуссаҕа эмиэ үлэлииллэр", streetOnly:s=>`Дьиэ ыйыллыбатах эбэтэр көстүбэтэ. «${s}» уулуссатын участковайдара:`,
+    notFound:q=>`«<b>${q}</b>» көстүбэтэ. Уулусса аатын бэрэбиэркэлээ эбэтэр сүбэттэн тал.`,
+    tryEx:"Холобур: ", next:"Чугастааҕы приём", liveNow:"Билигин приём бара турар", today:"бүгүн", tomorrow:"сарсын", inDays:n=>`${n} хонугунан`,
+    point:"Полиция пууна", hours:"Приём", call:"Эрий", route:"Суол", area:"Аадырыстар", noPhone:"төлөпүөн суох",
+    allOf:n=>`Бары участковайдар · ${n}`, filter:"Араспаанньа эбэтэр уулусса…", officersHere:n=>`Бу пууҥҥа ${n} участковай`,
+    nearest:"Эйиэхэ чугас пууннар", km:k=> k<1 ? `${Math.round(k*1000)} м` : `${k.toFixed(1)} км`,
+    geoErr:"Сири-уоту быһаарар кыах суох. Геолокацияны көҥүллээ эбэтэр аадырыһы киллэр.", geoWait:"Ханна баарыҥ быһаарыллар…",
+    wd:["бс","бн","оп","сэ","чп","бэ","сб"], mon:["тохсунньу","олунньу","кулун тутар","муус устар","ыам ыйа","бэс ыйа","от ыйа","атырдьах ыйа","балаҕан ыйа","алтынньы","сэтинньи","ахсынньы"],
+    showOn:"Каартаҕа көрдөр", vrio:"врио", showAll:n=>`Барыларын көрдөр (${n})`
+  }
+};
+
+const tg = window.Telegram && Telegram.WebApp;
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let lang = store.get("lang") || "ru";
+const $ = s => document.querySelector(s);
+const T = (k,...a) => { const v = I18N[lang][k]; return typeof v === "function" ? v(...a) : v; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const haptic = t => { try{ t ? tg.HapticFeedback.notificationOccurred(t) : tg.HapticFeedback.impactOccurred("light"); }catch(e){} };
+const open = url => { if (tg && tg.openLink) tg.openLink(url); else window.open(url, "_blank"); };
+if (tg){ tg.ready(); tg.expand(); }
+const dark = tg ? tg.colorScheme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+if (dark) document.body.classList.add("dark");
+
+const D = Core.DATA;
+D.officers.forEach(o=>{ o.r = o.r.charAt(0).toUpperCase() + o.r.slice(1).toLowerCase(); });
+const PALETTE = [["#2f7cf6","#7b4dff"],["#14b8a6","#2f7cf6"],["#f5a524","#ef4655"],["#7b4dff","#ec4899"],["#22b573","#14b8a6"],["#ef4655","#7b4dff"]];
+const initials = n => n.split(" ").slice(0,2).map(w=>w[0]).join("");
+const avatar = o => { const c = PALETTE[o.id % PALETTE.length]; return `<div class="av" style="--c1:${c[0]};--c2:${c[1]}">${initials(o.n)}</div>`; };
+let state = { view:null, arg:null };
+
+/* ---------- карточка участкового ---------- */
+function nextHtml(o){
+  const s = Core.nextSlot(o.hr); if (!s) return "";
+  const when = s.days===0 ? T("today") : s.days===1 ? T("tomorrow") : T("inDays", s.days);
+  const d = s.date; const date = `${T("wd")[d.getUTCDay()]}, ${d.getUTCDate()} ${T("mon")[d.getUTCMonth()]}`;
+  const cls = s.live ? "live" : s.days<=1 ? "soon" : "";
+  const head = s.live ? `<span class="dot"></span>${T("liveNow")}` : `${T("next")} · ${when}`;
+  return `<div class="next ${cls}"><i>🕐</i><div><small>${head}</small><b>${date}, ${s.from}–${s.to}</b></div></div>`;
+}
+function areaHtml(o, hl){
+  return o.l.map(l=>{
+    const name = l.st ? `${l.st} ${l.t}${l.s!=="Якутск" ? " · "+l.s : ""}` : l.s;
+    const hs = l.h.map(h => hl && Core.parseQuery("x "+h).house===hl ? `<mark>${esc(h)}</mark>` : esc(h)).join(", ");
+    return `<div><b>${esc(name)}</b><span>${hs || "—"}</span></div>`;
+  }).join("");
+}
+function card(o, opts={}){
+  const p = D.points[o.p]; const phone = o.ph[0];
+  return `<div class="off ${opts.best?"best":""}" style="animation-delay:${(opts.k||0)*.05}s">
+    <div class="oh">${avatar(o)}<div><span class="rk">${esc(o.r)}</span><b>${esc(o.n)}</b>${opts.best?`<span class="badge">${T("yourOfficer")}</span>`:""}</div></div>
+    ${nextHtml(o)}
+    <div class="row">📍 <span>${T("point")}: <b>${esc(p.a)}</b></span></div>
+    <div class="row">🗓 <span>${T("hours")}: ${esc(o.hr)}</span></div>
+    <div class="acts">
+      <a class="act ${phone?"pri":"dis"}" ${phone?`href="tel:${phone.replace(/[^\d+]/g,"")}"`:""}><em>📞</em>${phone?T("call"):T("noPhone")}</a>
+      <button class="act" data-route="${o.p}"><em>🗺</em>${T("route")}</button>
+      <button class="act" data-area="${o.id}"><em>🏠</em>${T("area")}</button>
+    </div>
+    <div class="addrs" id="area${o.id}">${areaHtml(o, opts.house)}</div>
+  </div>`;
+}
+
+/* ---------- поиск ---------- */
+function search(q){
+  q = (q ?? $("#q").value).trim(); if (!q) return;
+  $("#sug").classList.remove("on"); $("#q").blur();
+  state = { view:"search", arg:q };
+  const r = Core.find(q), out = $("#out");
+  if (!r.exact.length && !r.onStreet.length){
+    haptic("error");
+    const ex = ["Горького 94","Ильменская 57 к 2","Ленина 1","Маган"];
+    out.innerHTML = `<div class="sec"></div><div class="msg">${T("notFound", esc(q))}<br><br>${T("tryEx")}${ex.map(e=>`<a href="#" data-ex="${e}" style="color:var(--accent)">${e}</a>`).join(", ")}</div>`;
+    return;
+  }
+  haptic(r.exact.length ? "success" : "");
+  let html = "";
+  if (r.exact.length){
+    html += `<div class="sec">${T("yourOfficer")}</div><div class="res">${r.exact.map((o,k)=>card(o,{best:true,k,house:r.query.house})).join("")}</div>`;
+    if (r.onStreet.length) html += `<div class="sec">${T("others")}</div><div class="res">${r.onStreet.map((o,k)=>card(o,{k})).join("")}</div>`;
+  } else {
+    html += `<div class="sec"></div><div class="msg" style="margin-bottom:10px">${T("streetOnly", esc(r.streets[0].label))}</div><div class="res">${r.onStreet.map((o,k)=>card(o,{k})).join("")}</div>`;
+  }
+  out.innerHTML = html;
+  const ids = [...new Set([...r.exact, ...r.onStreet].map(o=>o.p))];
+  highlight(ids, true);
+  setTimeout(()=>out.scrollIntoView({behavior:"smooth", block:"start"}), 60);
+}
+
+/* ---------- подсказки ---------- */
+$("#q").addEventListener("input", ()=>{
+  const v = $("#q").value.trim(), box = $("#sug");
+  if (v.length < 2 || /\d\s*$/.test(v) && Core.find(v).exact.length){ box.classList.remove("on"); return; }
+  const p = Core.parseQuery(v); const list = Core.suggest(v, 6);
+  if (!list.length || (list.length===1 && Core.parseQuery(list[0]).street===p.street && p.house)){ box.classList.remove("on"); return; }
+  box.innerHTML = list.map(s=>{
+    const i = s.toLowerCase().indexOf(p.street);
+    const lab = i>=0 ? esc(s.slice(0,i))+"<b>"+esc(s.slice(i,i+p.street.length))+"</b>"+esc(s.slice(i+p.street.length)) : esc(s);
+    return `<button data-s="${esc(s)}">${lab}</button>`;
+  }).join("");
+  box.classList.add("on");
+});
+$("#sug").addEventListener("click", e=>{
+  const b = e.target.closest("[data-s]"); if (!b) return;
+  const st = b.dataset.s.replace(/\s(ул|пр-кт|пер|мкр|кв-л|ш|тракт|тер|проезд|пл|снт|дор)\.?(?=\s|$)/, "").replace(/\s\(.*\)$/,"");
+  $("#q").value = st + " "; $("#sug").classList.remove("on"); $("#q").focus(); haptic();
+});
+document.addEventListener("click", e=>{ if (!e.target.closest(".search")) $("#sug").classList.remove("on"); });
+$("#go").onclick = ()=>search();
+$("#q").addEventListener("keydown", e=>{ if (e.key==="Enter") search(); });
+
+/* ---------- все участковые ---------- */
+function showAll(filter=""){
+  state = { view:"all", arg:filter };
+  const f = filter.toLowerCase().replace(/ё/g,"е");
+  const list = D.officers.filter(o => !f || (o.n+" "+o.l.map(l=>l.st+" "+l.s).join(" ")).toLowerCase().replace(/ё/g,"е").includes(f));
+  const out = $("#out");
+  if (!out.querySelector("#flt")){
+    out.innerHTML = `<div class="sec">${T("allOf", D.officers.length)}</div><input class="filter" id="flt" placeholder="${T("filter")}"><div class="res" id="allList"></div>`;
+    $("#flt").addEventListener("input", e=>showAll(e.target.value));
+    setTimeout(()=>out.scrollIntoView({behavior:"smooth",block:"start"}),60);
+  }
+  $("#allList").innerHTML = list.slice(0,40).map(o=>`<button class="mini" data-off="${o.id}">${avatar(o)}<div><b>${esc(o.n)}</b><span>${esc(o.r)} · ${esc(D.points[o.p].a)}</span></div><i>›</i></button>`).join("");
+}
+$("#all").onclick = ()=>{ haptic(); $("#out").innerHTML=""; showAll(); };
+
+/* ---------- геолокация ---------- */
+function nearMe(){
+  haptic();
+  $("#out").innerHTML = `<div class="sec"></div><div class="msg">📡 ${T("geoWait")}</div>`;
+  const done = (lat,lng)=>{
+    state = { view:"near", arg:[lat,lng] };
+    const n = Core.nearest(lat, lng, 3);
+    $("#out").innerHTML = `<div class="sec">${T("nearest")}</div><div class="res">${n.map(x=>pointHtml(x.p, x.km)).join("")}</div>`;
+    meMarker(lat,lng); if (HAS_MAP) map.fitBounds(L.latLngBounds([[lat,lng], ...n.map(x=>[x.p.lat,x.p.lng])]).pad(.25));
+    $("#out").scrollIntoView({behavior:"smooth",block:"start"});
+  };
+  const fail = ()=>{ $("#out").innerHTML = `<div class="sec"></div><div class="msg">⚠️ ${T("geoErr")}</div>`; haptic("error"); };
+  const lm = tg && tg.LocationManager;
+  if (lm && lm.init && tg.isVersionAtLeast && tg.isVersionAtLeast("8.0")){
+    lm.init(()=>{ if (lm.isLocationAvailable) lm.getLocation(d=> d ? done(d.latitude,d.longitude) : browserGeo()); else browserGeo(); });
+  } else browserGeo();
+  function browserGeo(){
+    if (!navigator.geolocation) return fail();
+    navigator.geolocation.getCurrentPosition(p=>done(p.coords.latitude,p.coords.longitude), fail, {enableHighAccuracy:true, timeout:10000});
+  }
+}
+$("#near").onclick = nearMe;
+
+/* ---------- карта ---------- */
+const HAS_MAP = !!window.L;   // если карта не загрузилась — показываем список пунктов
+let map = null, meM = null, selId = null;
+if (HAS_MAP){
+  map = L.map("map", {zoomControl:false, attributionControl:true}).setView([62.035,129.73], 12);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(map);
+  D.points.forEach(p=>{
+    const n = Core.officersAt(p.id).length;
+    const m = L.marker([p.lat,p.lng], {icon:L.divIcon({className:"", html:`<div class="pin" id="pin${p.id}"><b>${n}</b></div>`, iconSize:[34,34], iconAnchor:[6,34]})}).addTo(map);
+    m.on("click", ()=>{ haptic(); selectPoint(p.id); });
+  });
+  map.fitBounds(L.latLngBounds(D.points.map(p=>[p.lat,p.lng])).pad(.1));
+} else {
+  $("#map").outerHTML = `<div class="point">${D.points.map(p=>`<button class="mini" data-point="${p.id}"><div class="av" style="--c1:#2f7cf6;--c2:#14b8a6">${Core.officersAt(p.id).length}</div><div><b>${esc(p.a)}</b></div><i>›</i></button>`).join("")}</div>`;
+}
+function meMarker(lat,lng){ if (!HAS_MAP) return; if (meM) meM.remove(); meM = L.marker([lat,lng], {icon:L.divIcon({className:"", html:'<div class="me"></div>', iconSize:[18,18], iconAnchor:[9,9]})}).addTo(map); }
+function highlight(ids, fit){
+  selId = ids.length===1 ? ids[0] : null;
+  if (!HAS_MAP) return;
+  document.querySelectorAll(".pin").forEach(el=>el.classList.remove("sel"));
+  ids.forEach(id=>{ const el = document.getElementById("pin"+id); if (el) el.classList.add("sel"); });
+  if (fit && ids.length){
+    const b = L.latLngBounds(ids.map(id=>[D.points[id].lat, D.points[id].lng]));
+    ids.length===1 ? map.setView(b.getCenter(), 15) : map.fitBounds(b.pad(.4));
+  }
+}
+function pointHtml(p, km){
+  const offs = Core.officersAt(p.id);
+  return `<div class="point">
+    <h3>🏢 ${esc(p.a)}</h3><p>${T("officersHere", offs.length)}${km!=null ? " · "+T("km",km) : ""}</p>
+    ${offs.map((o,k)=>`<button class="mini ${k>=4?"hide more"+p.id:""}" data-off="${o.id}">${avatar(o)}<div><b>${esc(o.n)}</b><span>${esc(o.r)}</span></div><i>›</i></button>`).join("")}
+    ${offs.length>4 ? `<button class="btn ghost" data-more="${p.id}">${T("showAll", offs.length)}</button>` : ""}
+    <button class="btn" data-route="${p.id}">🗺 ${T("route")}</button>
+  </div>`;
+}
+function selectPoint(id){
+  highlight([id]); if (HAS_MAP) map.panTo([D.points[id].lat, D.points[id].lng]);
+  $("#pointBox").innerHTML = pointHtml(D.points[id]);
+  $("#pointBox").scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+/* ---------- общие клики ---------- */
+document.addEventListener("click", e=>{
+  const r = e.target.closest("[data-route]");
+  if (r){ const p = D.points[+r.dataset.route]; haptic(); open(`https://yandex.ru/maps/?rtext=~${p.lat},${p.lng}&rtt=auto`); return; }
+  const a = e.target.closest("[data-area]");
+  if (a){ haptic(); $("#area"+a.dataset.area).classList.toggle("on"); return; }
+  const o = e.target.closest("[data-off]");
+  if (o){ haptic(); const off = D.officers[+o.dataset.off]; state = {view:"off", arg:off.id};
+    $("#out").innerHTML = `<div class="sec"></div><div class="res">${card(off,{})}</div>`; highlight([off.p], true);
+    $("#out").scrollIntoView({behavior:"smooth", block:"start"}); return; }
+  const mo = e.target.closest("[data-more]");
+  if (mo){ haptic(); mo.parentElement.querySelectorAll(".more"+mo.dataset.more).forEach(x=>x.classList.remove("hide")); mo.remove(); return; }
+  const pt = e.target.closest("[data-point]");
+  if (pt){ haptic(); selectPoint(+pt.dataset.point); return; }
+  const ex = e.target.closest("[data-ex]");
+  if (ex){ e.preventDefault(); $("#q").value = ex.dataset.ex; search(); }
+});
+$("#promo").addEventListener("click", e=>{ if (tg && tg.openLink){ e.preventDefault(); tg.openLink($("#promo").href); } });
+
+/* ---------- язык ---------- */
+function applyLang(){
+  document.querySelectorAll("[data-t]").forEach(el=>{ const v = I18N[lang][el.dataset.t]; if (typeof v==="string") el.textContent = v; });
+  document.querySelectorAll(".lang button").forEach(b=>b.classList.toggle("on", b.dataset.lang===lang));
+  $("#q").placeholder = T("ph"); $("#mapCount").textContent = T("points", D.points.length);
+  if (state.view==="search") search(state.arg);
+  else if (state.view==="all"){ $("#out").innerHTML=""; showAll(state.arg); }
+  else if (state.view==="off"){ const off = D.officers[state.arg]; $("#out").innerHTML = `<div class="sec"></div><div class="res">${card(off,{})}</div>`; }
+  if ($("#pointBox").innerHTML && selId!=null) $("#pointBox").innerHTML = pointHtml(D.points[selId]);
+}
+document.querySelectorAll(".lang button").forEach(b=>b.onclick=()=>{ lang=b.dataset.lang; store.set("lang",lang); haptic(); applyLang(); });
+applyLang();
+</script>
+</body>
+</html>
